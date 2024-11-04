@@ -41,7 +41,7 @@ fun Application.module() {
 
     routing {
         get("/") {
-            call.respondText("Flag Quiz Game Server Running!")
+            call.respondText("models.Flag Quiz Game Server Running!")
         }
 
         get("/rooms") {
