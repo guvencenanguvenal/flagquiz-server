@@ -84,11 +84,10 @@ class GameService {
             put("cursorPosition", JsonPrimitive(rooms[roomId]?.cursorPosition ?: 0.5f))
             put("timeRemaining", JsonPrimitive(ROUND_TIME_SECONDS))
             putJsonObject("currentQuestion") {
-                put("flagId", JsonPrimitive(question.flagId))
+                put("flagUrl", JsonPrimitive(question.flagUrl))
                 putJsonArray("options") {
                     question.options.forEach { add(JsonPrimitive(it)) }
                 }
-                put("correctAnswer", JsonPrimitive(question.correctAnswer))
             }
         }
 
@@ -238,11 +237,9 @@ class GameService {
             val question = currentQuestions[roomId]
             if (question != null) {
                 putJsonObject("currentQuestion") {
-                    put("flagId", JsonPrimitive(question.flagId))
                     putJsonArray("options") {
                         question.options.forEach { add(JsonPrimitive(it)) }
                     }
-                    put("correctAnswer", JsonPrimitive(question.correctAnswer))
                 }
             }
         }

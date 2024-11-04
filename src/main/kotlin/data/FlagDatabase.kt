@@ -26,8 +26,9 @@ object FlagDatabase {
 
         return Question(
             flagId = correctFlag.id,
+            flagUrl = correctFlag.flagUrl,
             options = options,
-            correctAnswer = correctFlag.name.tr
+            correctAnswer = correctFlag.id
         )
     }
 
