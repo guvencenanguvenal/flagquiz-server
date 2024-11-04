@@ -38,17 +38,24 @@ application {
     mainClass.set("com.flagquiz.ApplicationKt")
 }
 
-tasks.create("buildFatJar", Jar::class) {
-    group = "build"
-    manifest {
-        attributes["Main-Class"] = "com.alicankorkmaz.ApplicationKt" // Ana sınıfınızın yolu
+tasks {
+    val fatJar = register<Jar>("buildFatJar") {
+        dependsOn.addAll(listOf("compileJava", "compileKotlin", "processResources"))
+        archiveClassifier.set("standalone")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        manifest {
+            attributes(
+                mapOf(
+                    "Main-Class" to "ApplicationKt"
+                )
+            )
+        }
+        val sourcesMain = sourceSets.main.get()
+        val contents = configurations.runtimeClasspath.get()
+            .map { if (it.isDirectory) it else zipTree(it) } +
+                sourcesMain.output
+        from(contents)
     }
-    from(sourceSets.main.get().output)
-    dependsOn(configurations.runtimeClasspath)
-    from({
-        configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.map { zipTree(it) }
-    })
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 tasks.test {
