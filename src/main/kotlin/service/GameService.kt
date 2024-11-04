@@ -5,7 +5,7 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
 import models.*
 import java.util.*
 
@@ -78,20 +78,14 @@ class GameService {
         currentQuestions[roomId] = question
         roundAnswers[roomId]?.clear()
 
-        val jsonObject = buildJsonObject {
-            put("type", JsonPrimitive("GameUpdate"))
-            put("gameState", JsonPrimitive("PLAYING"))
-            put("cursorPosition", JsonPrimitive(rooms[roomId]?.cursorPosition ?: 0.5f))
-            put("timeRemaining", JsonPrimitive(ROUND_TIME_SECONDS))
-            putJsonObject("currentQuestion") {
-                put("flagUrl", JsonPrimitive(question.flagUrl))
-                putJsonArray("options") {
-                    question.options.forEach { add(JsonPrimitive(it)) }
-                }
-            }
-        }
+        val gameUpdate = GameMessage.GameUpdate(
+            gameState = GameState.PLAYING,
+            cursorPosition = rooms[roomId]?.cursorPosition ?: 0.5f,
+            timeRemaining = ROUND_TIME_SECONDS,
+            currentQuestion = question.toClientQuestion()
+        )
 
-        broadcastToRoom(roomId, jsonObject.toString())
+        broadcastToRoom(roomId, json.encodeToString(gameUpdate))
         startRoundTimer(roomId)
     }
 
@@ -105,11 +99,8 @@ class GameService {
                 // Kalan süreyi göster
                 for (timeLeft in ROUND_TIME_SECONDS - 1 downTo 1) {
                     delay(1000)
-                    val timeUpdate = buildJsonObject {
-                        put("type", JsonPrimitive("TimeUpdate"))
-                        put("timeRemaining", JsonPrimitive(timeLeft))
-                    }.toString()
-                    broadcastToRoom(roomId, timeUpdate)
+                    val timeUpdate = GameMessage.TimeUpdate(timeRemaining = timeLeft)
+                    broadcastToRoom(roomId, json.encodeToString(timeUpdate))
                 }
 
                 delay(1000)
@@ -127,11 +118,8 @@ class GameService {
         val answers = roundAnswers[roomId] ?: mutableMapOf()
 
         // Süre doldu mesajı
-        val timeUpMessage = buildJsonObject {
-            put("type", JsonPrimitive("TimeUp"))
-            put("correctAnswer", JsonPrimitive(question.correctAnswer))
-        }.toString()
-        broadcastToRoom(roomId, timeUpMessage)
+        val timeUpMessage = GameMessage.TimeUp(correctAnswer = question.correctAnswer)
+        broadcastToRoom(roomId, json.encodeToString(timeUpMessage))
 
         // Doğru cevap veren oyuncuyu bul
         val correctPlayer = room.players.find { p ->
@@ -151,11 +139,8 @@ class GameService {
 
             if (room.cursorPosition <= 0f || room.cursorPosition >= 1f) {
                 room.gameState = GameState.FINISHED
-                val gameOverMessage = buildJsonObject {
-                    put("type", JsonPrimitive("GameOver"))
-                    put("winner", JsonPrimitive(correctPlayer.name))
-                }.toString()
-                broadcastToRoom(roomId, gameOverMessage)
+                val gameOverMessage = GameMessage.GameOver(winner = correctPlayer.name)
+                broadcastToRoom(roomId, json.encodeToString(gameOverMessage))
 
                 // Odayı temizle
                 delay(5000)
@@ -179,11 +164,8 @@ class GameService {
         room.players.forEach { player ->
             playerSessions[player.id]?.let { session ->
                 CoroutineScope(Dispatchers.IO).launch {
-                    val message = buildJsonObject {
-                        put("type", JsonPrimitive("RoomClosed"))
-                        put("reason", JsonPrimitive("Player disconnected for too long"))
-                    }.toString()
-                    session.send(Frame.Text(message))
+                    val message = GameMessage.RoomClosed(reason = "Player disconnected for too long")
+                    session.send(Frame.Text(json.encodeToString(message)))
                 }
             }
 
@@ -209,14 +191,13 @@ class GameService {
         roundAnswers.getOrPut(roomId) { mutableMapOf() }[playerId] = answer
 
         // Cevap sonucunu bildir
-        val answerResult = buildJsonObject {
-            put("type", JsonPrimitive("AnswerResult"))
-            put("playerName", JsonPrimitive(player.name))
-            put("answer", JsonPrimitive(answer))
-            put("correct", JsonPrimitive(answer == question.correctAnswer))
-        }.toString()
+        val answerResult = GameMessage.AnswerResult(
+            playerName = player.name,
+            answer = answer,
+            correct = answer == question.correctAnswer
+        )
 
-        broadcastToRoom(roomId, answerResult)
+        broadcastToRoom(roomId, json.encodeToString(answerResult))
 
         // İki oyuncu da cevap verdiyse eli hemen sonlandır
         if (roundAnswers[roomId]?.size == 2) {
@@ -229,23 +210,14 @@ class GameService {
         println("Broadcasting game state for room $roomId")
         val room = rooms[roomId] ?: return
 
-        val jsonObject = buildJsonObject {
-            put("type", JsonPrimitive("GameUpdate"))
-            put("gameState", JsonPrimitive(room.gameState.toString()))
-            put("cursorPosition", JsonPrimitive(room.cursorPosition))
+        val gameUpdate = GameMessage.GameUpdate(
+            gameState = room.gameState,
+            cursorPosition = room.cursorPosition,
+            currentQuestion = currentQuestions[roomId]?.toClientQuestion()
+        )
 
-            val question = currentQuestions[roomId]
-            if (question != null) {
-                putJsonObject("currentQuestion") {
-                    putJsonArray("options") {
-                        question.options.forEach { add(JsonPrimitive(it)) }
-                    }
-                }
-            }
-        }
-
-        println("Game update with type: $jsonObject")
-        broadcastToRoom(roomId, jsonObject.toString())
+        println("Broadcasting game update: ${json.encodeToString(gameUpdate)}")
+        broadcastToRoom(roomId, json.encodeToString(gameUpdate))
     }
 
     private suspend fun broadcastToRoom(roomId: String, message: String) {
@@ -273,12 +245,18 @@ class GameService {
             when (gameMessage) {
                 is GameMessage.CreateRoom -> {
                     val roomId = createRoom(playerId, gameMessage.playerName)
-                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(roomId)))
+                    val response = GameMessage.RoomCreated(
+                        roomId = roomId
+                    )
+                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(response)))
                 }
 
                 is GameMessage.JoinRoom -> {
                     val success = joinRoom(playerId, gameMessage.roomId, gameMessage.playerName)
-                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(success)))
+                    val response = GameMessage.JoinRoomResponse(
+                        success = success
+                    )
+                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(response)))
                     if (success) {
                         startGame(gameMessage.roomId)
                     }
@@ -291,8 +269,8 @@ class GameService {
                     }
                 }
 
-                is GameMessage.GameUpdate -> {
-                    println("Received unexpected GameUpdate message from client")
+                else -> {
+                    println("Unexpected message type received: ${gameMessage::class.simpleName}")
                 }
             }
         } catch (e: Exception) {
@@ -319,13 +297,9 @@ class GameService {
                     )
 
                     // Diğer oyuncuya bildir
-                    val disconnectMessage = buildJsonObject {
-                        put("type", JsonPrimitive("PlayerDisconnected"))
-                        put("playerName", JsonPrimitive(player.name))
-                    }.toString()
-
+                    val disconnectMessage = GameMessage.PlayerDisconnected(playerName = player.name)
                     room.players.filter { it.id != playerId }.forEach { otherPlayer ->
-                        playerSessions[otherPlayer.id]?.send(Frame.Text(disconnectMessage))
+                        playerSessions[otherPlayer.id]?.send(Frame.Text(json.encodeToString(disconnectMessage)))
                     }
 
                     // Oyunu duraklatmak için GameState'i güncelle
@@ -359,13 +333,9 @@ class GameService {
                 disconnectedPlayers.remove(playerId)
 
                 // Diğer oyuncuya bildir
-                val reconnectMessage = buildJsonObject {
-                    put("type", JsonPrimitive("PlayerReconnected"))
-                    put("playerName", JsonPrimitive(disconnectedPlayer.playerName))
-                }.toString()
-
+                val reconnectMessage = GameMessage.PlayerReconnected(playerName = disconnectedPlayer.playerName)
                 room.players.filter { it.id != playerId }.forEach { otherPlayer ->
-                    playerSessions[otherPlayer.id]?.send(Frame.Text(reconnectMessage))
+                    playerSessions[otherPlayer.id]?.send(Frame.Text(json.encodeToString(reconnectMessage)))
                 }
 
                 // Oyunu devam ettir

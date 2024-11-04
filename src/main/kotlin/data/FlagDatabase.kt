@@ -3,6 +3,7 @@ package data
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import models.Flag
+import models.Option
 import models.Question
 
 object FlagDatabase {
@@ -22,7 +23,7 @@ object FlagDatabase {
     fun getRandomQuestion(): Question {
         val allFlags = flags.shuffled()
         val correctFlag = allFlags.first()
-        val options = allFlags.take(4).map { it.name.tr }.shuffled()
+        val options = allFlags.take(4).map { Option(it.id, it.name.tr) }.shuffled()
 
         return Question(
             flagId = correctFlag.id,
