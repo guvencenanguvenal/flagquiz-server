@@ -21,7 +21,7 @@ class GameService {
     private val playerToRoom = mutableMapOf<String, String>()
     private val disconnectedPlayers = mutableMapOf<String, DisconnectedPlayer>()
 
-    private val ROUND_TIME_SECONDS = 15L  // Her el için süre limiti
+    private val ROUND_TIME_SECONDS = 10L  // Her el için süre limiti
 
     fun createRoom(playerId: String, playerName: String): String {
         val roomId = UUID.randomUUID().toString()
@@ -199,8 +199,8 @@ class GameService {
 
         broadcastToRoom(roomId, json.encodeToString(answerResult))
 
-        // İki oyuncu da cevap verdiyse eli hemen sonlandır
-        if (roundAnswers[roomId]?.size == 2) {
+        // Doğru cevap verildiyse eli hemen sonlandır
+        if (answer == question.correctAnswer) {
             roundTimers[roomId]?.cancel()  // Timer'ı iptal et
             handleRoundEnd(roomId)
         }
@@ -302,7 +302,7 @@ class GameService {
                         playerSessions[otherPlayer.id]?.send(Frame.Text(json.encodeToString(disconnectMessage)))
                     }
 
-                    // Oyunu duraklatmak için GameState'i güncelle
+                    // Oyunu duraklatmak için GameState'i gncelle
                     room.gameState = GameState.PAUSED
                     roundTimers[roomId]?.cancel() // Timer'ı durdur
 
