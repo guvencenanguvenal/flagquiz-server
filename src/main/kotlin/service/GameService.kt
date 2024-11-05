@@ -4,7 +4,6 @@ import data.FlagDatabase
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import models.*
 import java.util.*
@@ -85,7 +84,7 @@ class GameService {
             currentQuestion = question.toClientQuestion()
         )
 
-        broadcastToRoom(roomId, json.encodeToString(gameUpdate))
+        broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), gameUpdate))
         startRoundTimer(roomId)
     }
 
@@ -100,7 +99,7 @@ class GameService {
                 for (timeLeft in ROUND_TIME_SECONDS - 1 downTo 1) {
                     delay(1000)
                     val timeUpdate = GameMessage.TimeUpdate(timeRemaining = timeLeft)
-                    broadcastToRoom(roomId, json.encodeToString(timeUpdate))
+                    broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), timeUpdate))
                 }
 
                 delay(1000)
@@ -119,7 +118,7 @@ class GameService {
 
         // Süre doldu mesajı
         val timeUpMessage = GameMessage.TimeUp(correctAnswer = question.correctAnswer)
-        broadcastToRoom(roomId, json.encodeToString(timeUpMessage))
+        broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), timeUpMessage))
 
         // Doğru cevap veren oyuncuyu bul
         val correctPlayer = room.players.find { p ->
@@ -140,7 +139,7 @@ class GameService {
             if (room.cursorPosition <= 0f || room.cursorPosition >= 1f) {
                 room.gameState = GameState.FINISHED
                 val gameOverMessage = GameMessage.GameOver(winner = correctPlayer.name)
-                broadcastToRoom(roomId, json.encodeToString(gameOverMessage))
+                broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), gameOverMessage))
 
                 // Odayı temizle
                 delay(5000)
@@ -165,7 +164,7 @@ class GameService {
             playerSessions[player.id]?.let { session ->
                 CoroutineScope(Dispatchers.IO).launch {
                     val message = GameMessage.RoomClosed(reason = "Player disconnected for too long")
-                    session.send(Frame.Text(json.encodeToString(message)))
+                    session.send(Frame.Text(json.encodeToString(GameMessage.serializer(), message)))
                 }
             }
 
@@ -197,7 +196,7 @@ class GameService {
             correct = answer == question.correctAnswer
         )
 
-        broadcastToRoom(roomId, json.encodeToString(answerResult))
+        broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), answerResult))
 
         // Doğru cevap verildiyse eli hemen sonlandır
         if (answer == question.correctAnswer) {
@@ -216,8 +215,8 @@ class GameService {
             currentQuestion = currentQuestions[roomId]?.toClientQuestion()
         )
 
-        println("Broadcasting game update: ${json.encodeToString(gameUpdate)}")
-        broadcastToRoom(roomId, json.encodeToString(gameUpdate))
+        println("Broadcasting game update: ${json.encodeToString(GameMessage.serializer(), gameUpdate)}")
+        broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), gameUpdate))
     }
 
     private suspend fun broadcastToRoom(roomId: String, message: String) {
@@ -248,7 +247,7 @@ class GameService {
                     val response = GameMessage.RoomCreated(
                         roomId = roomId
                     )
-                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(response)))
+                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(GameMessage.serializer(), response)))
                 }
 
                 is GameMessage.JoinRoom -> {
@@ -256,7 +255,7 @@ class GameService {
                     val response = GameMessage.JoinRoomResponse(
                         success = success
                     )
-                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(response)))
+                    playerSessions[playerId]?.send(Frame.Text(json.encodeToString(GameMessage.serializer(), response)))
                     if (success) {
                         startGame(gameMessage.roomId)
                     }
@@ -299,7 +298,14 @@ class GameService {
                     // Diğer oyuncuya bildir
                     val disconnectMessage = GameMessage.PlayerDisconnected(playerName = player.name)
                     room.players.filter { it.id != playerId }.forEach { otherPlayer ->
-                        playerSessions[otherPlayer.id]?.send(Frame.Text(json.encodeToString(disconnectMessage)))
+                        playerSessions[otherPlayer.id]?.send(
+                            Frame.Text(
+                                json.encodeToString(
+                                    GameMessage.serializer(),
+                                    disconnectMessage
+                                )
+                            )
+                        )
                     }
 
                     // Oyunu duraklatmak için GameState'i gncelle
@@ -335,7 +341,14 @@ class GameService {
                 // Diğer oyuncuya bildir
                 val reconnectMessage = GameMessage.PlayerReconnected(playerName = disconnectedPlayer.playerName)
                 room.players.filter { it.id != playerId }.forEach { otherPlayer ->
-                    playerSessions[otherPlayer.id]?.send(Frame.Text(json.encodeToString(reconnectMessage)))
+                    playerSessions[otherPlayer.id]?.send(
+                        Frame.Text(
+                            json.encodeToString(
+                                GameMessage.serializer(),
+                                reconnectMessage
+                            )
+                        )
+                    )
                 }
 
                 // Oyunu devam ettir
