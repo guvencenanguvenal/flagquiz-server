@@ -82,6 +82,7 @@ sealed class GameMessage {
     @Serializable
     @SerialName("JoinRoomResponse")
     data class JoinRoomResponse(
+        val roomId: String,
         val success: Boolean
     ) : GameMessage()
 

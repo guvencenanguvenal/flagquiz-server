@@ -253,6 +253,7 @@ class GameService {
                 is GameMessage.JoinRoom -> {
                     val success = joinRoom(playerId, gameMessage.roomId, gameMessage.playerName)
                     val response = GameMessage.JoinRoomResponse(
+                        gameMessage.roomId,
                         success = success
                     )
                     playerSessions[playerId]?.send(Frame.Text(json.encodeToString(GameMessage.serializer(), response)))
