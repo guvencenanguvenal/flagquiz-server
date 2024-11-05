@@ -24,10 +24,6 @@ class RoomManagerService private constructor() {
 
     private val playerToRoom = mutableMapOf<String, String>()
 
-    private val roundAnswers = mutableMapOf<String, MutableMap<String, String>>()
-
-    private val roundTimers = mutableMapOf<String, Job>()  // Her odanın zamanlayıcısı
-
     private val disconnectedPlayers = mutableMapOf<String, DisconnectedPlayer>()
 
     fun getRoomIdFromPlayerId(playerId: String): String {
@@ -79,7 +75,7 @@ class RoomManagerService private constructor() {
             println("Starting actual game for room $roomId")
             // Oyunu başlat
             room.roomState = RoomState.PLAYING
-            nextQuestion(roomId)
+            nextQuestion(room)
         }
     }
 
@@ -95,12 +91,10 @@ class RoomManagerService private constructor() {
         broadcastToRoom(roomId, gameUpdate)
     }
 
-    private suspend fun nextQuestion(roomId: String) {
-        val room = rooms[roomId]!!
+    private suspend fun nextQuestion(room: GameRoom) {
         val question = room.game!!.nextQuestion()
-        roundAnswers[roomId]?.clear()
         //TODO: gameleri yoneten bir yapi kurulmali
-        val resistanceGame = rooms[roomId]?.game as ResistanceGame?
+        val resistanceGame = room.game as ResistanceGame?
 
         val gameUpdate = GameMessage.GameUpdate(
             roomState = RoomState.PLAYING,
@@ -109,16 +103,15 @@ class RoomManagerService private constructor() {
             currentQuestion = question.toClientQuestion()
         )
 
-        broadcastToRoom(roomId, gameUpdate)
-        startRoundTimer(roomId)
+        broadcastToRoom(room.id, gameUpdate)
+        startRoundTimer(room.id)
     }
 
     private fun startRoundTimer(roomId: String) {
         val room = rooms[roomId]!!
-        // Önceki timer'ı iptal et
-        roundTimers[roomId]?.cancel()
+        room.rounds.last().timer?.cancel()
         // Yeni timer başlat
-        roundTimers[roomId] = CoroutineScope(Dispatchers.Default).launch {
+        room.rounds.last().timer = CoroutineScope(Dispatchers.Default).launch {
             try {
                 for (timeLeft in room.game!!.getRoundTime() - 1 downTo 1) {
                     delay(1000)
@@ -127,16 +120,21 @@ class RoomManagerService private constructor() {
                 }
                 delay(1000)
                 // Süre doldu
+                room.rounds.last().answer = null
                 handleRoundEnd(roomId)
+                nextRound(room)
             } catch (e: CancellationException) {
                 // Timer iptal edildi
             }
         }
     }
 
-    private fun cleanupRoom(roomId: String) {
-        val room = rooms[roomId] ?: return
+    private fun nextRound(room: GameRoom) {
+        val roundNumber = room.rounds.size + 1
+        room.rounds.add(Round(roundNumber))
+    }
 
+    private fun cleanupRoom(room: GameRoom) {
         // Odadaki oyunculara bildir
         room.players.forEach { player ->
             SessionManagerService.INSTANCE.getPlayerSession(player.id)?.let { session ->
@@ -152,10 +150,8 @@ class RoomManagerService private constructor() {
         }
 
         // Oda verilerini temizle
-        rooms.remove(roomId)
-        roundAnswers.remove(roomId)
-        roundTimers[roomId]?.cancel()
-        roundTimers.remove(roomId)
+        room.rounds.last().timer?.cancel()
+        rooms.remove(room.id)
     }
 
     private suspend fun broadcastToRoom(roomId: String, message: GameMessage) {
@@ -180,9 +176,8 @@ class RoomManagerService private constructor() {
         val room = rooms[roomId] ?: return
         val question = room.game!!.currentQuestion ?: return
         val player = room.players.find { it.id == playerId } ?: return
-
-        // Cevabı kaydet
-        roundAnswers.getOrPut(roomId) { mutableMapOf() }[playerId] = answer
+        room.rounds.last().answer = answer
+        room.rounds.last().answeredPlayer = player
 
         // Cevap sonucunu bildir
         val answerResult = GameMessage.AnswerResult(
@@ -195,7 +190,7 @@ class RoomManagerService private constructor() {
 
         // Doğru cevap verildiyse eli hemen sonlandır
         if (answer == question.correctAnswer) {
-            roundTimers[roomId]?.cancel()  // Timer'ı iptal et
+            room.rounds.last().timer?.cancel()
             handleRoundEnd(roomId)
         }
     }
@@ -203,45 +198,27 @@ class RoomManagerService private constructor() {
     private suspend fun handleRoundEnd(roomId: String) {
         val room = rooms[roomId] ?: return
         val question = room.game!!.currentQuestion ?: return
-        val answers = roundAnswers[roomId] ?: mutableMapOf()
+        val answer = room.rounds.last().answer
+        val answeredPlayerId = room.rounds.last().answeredPlayer?.id
 
         // Süre doldu mesajı
         val timeUpMessage = GameMessage.TimeUp(correctAnswer = question.correctAnswer)
         broadcastToRoom(roomId, timeUpMessage)
 
-        // Doğru cevap veren oyuncuyu bul
-        val correctPlayer = room.players.find { p ->
-            answers[p.id] == question.correctAnswer
-        }
+        room.game?.processAnswer(answeredPlayerId, answer)
 
-        if (correctPlayer != null) {
-            // İmleç pozisyonunu güncelle,
-            val currentPosition = room.cursorPosition
-            val movement = if (room.players.indexOf(correctPlayer) == 0) -0.1f else 0.1f
-            val newPosition = currentPosition + movement
-            room.cursorPosition = when {
-                newPosition <= 0.1f -> 0f  // Sol limit
-                newPosition >= 0.9f -> 1f  // Sağ limit
-                else -> newPosition
-            }
+        if (room.cursorPosition <= 0f || room.cursorPosition >= 1f) {
+            room.roomState = RoomState.FINISHED
+            val gameOverMessage = GameMessage.GameOver(winner = room.rounds.last().answeredPlayer?.name!!)
+            broadcastToRoom(roomId, gameOverMessage)
 
-            if (room.cursorPosition <= 0f || room.cursorPosition >= 1f) {
-                room.roomState = RoomState.FINISHED
-                val gameOverMessage = GameMessage.GameOver(winner = correctPlayer.name)
-                broadcastToRoom(roomId, gameOverMessage)
-
-                // Odayı temizle
-                delay(5000)
-                cleanupRoom(roomId)
-            } else {
-                // Yeni soruya geç
-                delay(1500)
-                nextQuestion(roomId)
-            }
+            // Odayı temizle
+            delay(5000)
+            cleanupRoom(room)
         } else {
-            // Kimse doğru cevap veremediyse yeni soru
+            // Yeni soruya geç
             delay(1500)
-            nextQuestion(roomId)
+            nextQuestion(room)
         }
     }
 
@@ -265,7 +242,7 @@ class RoomManagerService private constructor() {
                 // Oyunu devam ettir
                 if (room.roomState == RoomState.PAUSED) {
                     room.roomState = RoomState.PLAYING
-                    nextQuestion(disconnectedPlayer.roomId)
+                    nextQuestion(room)
                 }
 
                 return true
@@ -273,7 +250,6 @@ class RoomManagerService private constructor() {
         }
         return false
     }
-
 
     suspend fun handleDisconnect(playerId: String) {
         val roomId = rooms.entries.find { entry ->
@@ -300,20 +276,19 @@ class RoomManagerService private constructor() {
 
                     // Oyunu duraklatmak için GameState'i gncelle
                     room.roomState = RoomState.PAUSED
-                    roundTimers[roomId]?.cancel() // Timer'ı durdur
+                    room.rounds.last().timer?.cancel() // Timer'ı durdur
 
                     // 30 saniye bekle ve oyuncu geri bağlanmazsa odayı temizle
                     CoroutineScope(Dispatchers.Default).launch {
                         delay(30000)
                         if (disconnectedPlayers.containsKey(playerId)) {
                             println("Player $playerId did not reconnect within 30 seconds, cleaning up room $roomId")
-                            cleanupRoom(roomId)
+                            cleanupRoom(room)
                         }
                     }
                 }
             }
         }
-
         SessionManagerService.INSTANCE.removePlayerSession(playerId)
     }
 }

@@ -24,19 +24,23 @@ class ResistanceGame(
         return currentQuestion!!
     }
 
-    override fun processAnswer(answeredPlayerId: String, answer: String) {
-        val correctPlayer = players.find { p ->
-            answer == currentQuestion?.correctAnswer
-        }
+    override fun processAnswer(answeredPlayerId: String?, answer: String?) {
+        val correctAnswer = answer == currentQuestion?.correctAnswer
 
-        if (correctPlayer != null) {
-            val currentPosition = cursorPosition
-            val movement = if (players.indexOf(correctPlayer) == 0) -0.1f else 0.1f
-            val newPosition = currentPosition + movement
-            cursorPosition = when {
-                newPosition <= 0.1f -> 0f  // Sol limit
-                newPosition >= 0.9f -> 1f  // Sağ limit
-                else -> newPosition
+        if (correctAnswer) {
+            val correctPlayer = players.find { p ->
+                p.id == answeredPlayerId
+            }
+
+            if (correctPlayer != null) {
+                val currentPosition = cursorPosition
+                val movement = if (players.indexOf(correctPlayer) == 0) -0.1f else 0.1f
+                val newPosition = currentPosition + movement
+                cursorPosition = when {
+                    newPosition <= 0.1f -> 0f  // Sol limit
+                    newPosition >= 0.9f -> 1f  // Sağ limit
+                    else -> newPosition
+                }
             }
         }
     }
