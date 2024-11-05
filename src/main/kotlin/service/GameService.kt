@@ -9,7 +9,7 @@ import models.*
 import java.util.*
 
 class GameService {
-    private val gameStates = mutableMapOf<String, GameState>()
+    private val roomStates = mutableMapOf<String, RoomState>()
     private val gameScope = CoroutineScope(Dispatchers.Default + Job())
     private val currentQuestions = mutableMapOf<String, Question>()
     private val roundAnswers = mutableMapOf<String, MutableMap<String, String>>()
@@ -58,7 +58,7 @@ class GameService {
         gameScope.launch {
             println("Starting countdown for room $roomId")
             // Geri sayım başlat
-            room.gameState = GameState.COUNTDOWN
+            room.roomState = RoomState.COUNTDOWN
             broadcastGameState(roomId)
 
             println("Waiting 3 seconds...")
@@ -67,7 +67,7 @@ class GameService {
 
             println("Starting actual game for room $roomId")
             // Oyunu başlat
-            room.gameState = GameState.PLAYING
+            room.roomState = RoomState.PLAYING
             nextQuestion(roomId)
         }
     }
@@ -78,7 +78,7 @@ class GameService {
         roundAnswers[roomId]?.clear()
 
         val gameUpdate = GameMessage.GameUpdate(
-            gameState = GameState.PLAYING,
+            roomState = RoomState.PLAYING,
             cursorPosition = rooms[roomId]?.cursorPosition ?: 0.5f,
             timeRemaining = ROUND_TIME_SECONDS,
             currentQuestion = question.toClientQuestion()
@@ -137,7 +137,7 @@ class GameService {
             }
 
             if (room.cursorPosition <= 0f || room.cursorPosition >= 1f) {
-                room.gameState = GameState.FINISHED
+                room.roomState = RoomState.FINISHED
                 val gameOverMessage = GameMessage.GameOver(winner = correctPlayer.name)
                 broadcastToRoom(roomId, json.encodeToString(GameMessage.serializer(), gameOverMessage))
 
@@ -210,7 +210,7 @@ class GameService {
         val room = rooms[roomId] ?: return
 
         val gameUpdate = GameMessage.GameUpdate(
-            gameState = room.gameState,
+            roomState = room.roomState,
             cursorPosition = room.cursorPosition,
             currentQuestion = currentQuestions[roomId]?.toClientQuestion()
         )
@@ -310,7 +310,7 @@ class GameService {
                     }
 
                     // Oyunu duraklatmak için GameState'i gncelle
-                    room.gameState = GameState.PAUSED
+                    room.roomState = RoomState.PAUSED
                     roundTimers[roomId]?.cancel() // Timer'ı durdur
 
                     // 30 saniye bekle ve oyuncu geri bağlanmazsa odayı temizle
@@ -353,8 +353,8 @@ class GameService {
                 }
 
                 // Oyunu devam ettir
-                if (room.gameState == GameState.PAUSED) {
-                    room.gameState = GameState.PLAYING
+                if (room.roomState == RoomState.PAUSED) {
+                    room.roomState = RoomState.PLAYING
                     nextQuestion(disconnectedPlayer.roomId)
                 }
 
@@ -369,7 +369,7 @@ class GameService {
             ActiveRoom(
                 id = id,
                 playerCount = room.players.size,
-                gameState = room.gameState,
+                roomState = room.roomState,
                 players = room.players.map { it.name }
             )
         }
@@ -380,7 +380,7 @@ class GameService {
 data class ActiveRoom(
     val id: String,
     val playerCount: Int,
-    val gameState: GameState,
+    val roomState: RoomState,
     val players: List<String> // oyuncu isimleri
 )
 

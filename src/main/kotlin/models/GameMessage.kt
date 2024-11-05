@@ -29,7 +29,7 @@ sealed class GameMessage {
     @Serializable
     @SerialName("GameUpdate")
     data class GameUpdate(
-        val gameState: GameState,
+        val roomState: RoomState,
         val cursorPosition: Float,
         val timeRemaining: Long? = null,
         val currentQuestion: ClientQuestion? = null
