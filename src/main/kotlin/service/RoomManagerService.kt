@@ -1,6 +1,5 @@
 package service
 
-import data.FlagDatabase
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
@@ -25,15 +24,11 @@ class RoomManagerService private constructor() {
 
     private val playerToRoom = mutableMapOf<String, String>()
 
-    private val currentQuestions = mutableMapOf<String, Question>()
-
     private val roundAnswers = mutableMapOf<String, MutableMap<String, String>>()
 
     private val roundTimers = mutableMapOf<String, Job>()  // Her odanın zamanlayıcısı
 
     private val disconnectedPlayers = mutableMapOf<String, DisconnectedPlayer>()
-
-    private val ROUND_TIME_SECONDS = 10L  // Her el için süre limiti
 
     fun getRoomIdFromPlayerId(playerId: String): String {
         return playerToRoom[playerId]!!
@@ -52,6 +47,7 @@ class RoomManagerService private constructor() {
 
     fun joinRoom(playerId: String, roomId: String, playerName: String): Boolean {
         val room = rooms[roomId] ?: return false
+        //TODO odaya istedigi kadar kisi katilabilecek
         if (room.players.size >= 2) return false
 
         val player = Player(playerId, playerName)
@@ -94,14 +90,14 @@ class RoomManagerService private constructor() {
         val gameUpdate = GameMessage.GameUpdate(
             roomState = room.roomState,
             cursorPosition = room.cursorPosition,
-            currentQuestion = currentQuestions[roomId]?.toClientQuestion()
+            currentQuestion = room.game!!.currentQuestion?.toClientQuestion()
         )
         broadcastToRoom(roomId, gameUpdate)
     }
 
     private suspend fun nextQuestion(roomId: String) {
-        val question = FlagDatabase.getRandomQuestion()
-        currentQuestions[roomId] = question
+        val room = rooms[roomId]!!
+        val question = room.game!!.nextQuestion()
         roundAnswers[roomId]?.clear()
         //TODO: gameleri yoneten bir yapi kurulmali
         val resistanceGame = rooms[roomId]?.game as ResistanceGame?
@@ -109,7 +105,7 @@ class RoomManagerService private constructor() {
         val gameUpdate = GameMessage.GameUpdate(
             roomState = RoomState.PLAYING,
             cursorPosition = resistanceGame?.cursorPosition ?: 0.5f,
-            timeRemaining = ROUND_TIME_SECONDS,
+            timeRemaining = room.game!!.getRoundTime(),
             currentQuestion = question.toClientQuestion()
         )
 
@@ -118,19 +114,17 @@ class RoomManagerService private constructor() {
     }
 
     private fun startRoundTimer(roomId: String) {
+        val room = rooms[roomId]!!
         // Önceki timer'ı iptal et
         roundTimers[roomId]?.cancel()
-
         // Yeni timer başlat
         roundTimers[roomId] = CoroutineScope(Dispatchers.Default).launch {
             try {
-                // Kalan süreyi göster
-                for (timeLeft in ROUND_TIME_SECONDS - 1 downTo 1) {
+                for (timeLeft in room.game!!.getRoundTime() - 1 downTo 1) {
                     delay(1000)
                     val timeUpdate = GameMessage.TimeUpdate(timeRemaining = timeLeft)
                     broadcastToRoom(roomId, timeUpdate)
                 }
-
                 delay(1000)
                 // Süre doldu
                 handleRoundEnd(roomId)
@@ -159,7 +153,6 @@ class RoomManagerService private constructor() {
 
         // Oda verilerini temizle
         rooms.remove(roomId)
-        currentQuestions.remove(roomId)
         roundAnswers.remove(roomId)
         roundTimers[roomId]?.cancel()
         roundTimers.remove(roomId)
@@ -185,7 +178,7 @@ class RoomManagerService private constructor() {
 
     suspend fun handlePlayerAnswer(roomId: String, playerId: String, answer: String) {
         val room = rooms[roomId] ?: return
-        val question = currentQuestions[roomId] ?: return
+        val question = room.game!!.currentQuestion ?: return
         val player = room.players.find { it.id == playerId } ?: return
 
         // Cevabı kaydet
@@ -209,7 +202,7 @@ class RoomManagerService private constructor() {
 
     private suspend fun handleRoundEnd(roomId: String) {
         val room = rooms[roomId] ?: return
-        val question = currentQuestions[roomId] ?: return
+        val question = room.game!!.currentQuestion ?: return
         val answers = roundAnswers[roomId] ?: mutableMapOf()
 
         // Süre doldu mesajı
@@ -323,5 +316,4 @@ class RoomManagerService private constructor() {
 
         SessionManagerService.INSTANCE.removePlayerSession(playerId)
     }
-
 }

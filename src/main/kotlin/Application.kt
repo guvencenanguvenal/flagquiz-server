@@ -11,7 +11,7 @@ import io.ktor.websocket.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import service.ActiveRoomsResponse
+import response.ActiveRoomsResponse
 import service.GameService
 import service.RoomManagerService
 import service.SessionManagerService
@@ -48,7 +48,7 @@ fun Application.module() {
         }
 
         get("/rooms") {
-            val rooms = gameService.getActiveRooms()
+            val rooms = RoomManagerService.INSTANCE.getActiveRooms()
             call.respond(ActiveRoomsResponse(rooms))
         }
 

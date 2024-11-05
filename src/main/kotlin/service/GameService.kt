@@ -384,11 +384,6 @@ data class ActiveRoom(
     val players: List<String> // oyuncu isimleri
 )
 
-@Serializable
-data class ActiveRoomsResponse(
-    val rooms: List<ActiveRoom>
-)
-
 data class DisconnectedPlayer(
     val playerId: String,
     val playerName: String,

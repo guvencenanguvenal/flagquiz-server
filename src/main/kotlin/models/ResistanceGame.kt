@@ -12,10 +12,14 @@ class ResistanceGame(
     var cursorPosition: Float = 0.5f
 ) : Game(id, players, currentQuestion) {
 
+    companion object {
+        fun a() : Int = 1
+    }
+
     private val ROUND_TIME_SECONDS = 10L
 
     private val MAX_PLAYERS = 2
-    override fun nextQuestion(roomId: String): Question {
+    override fun nextQuestion(): Question {
         currentQuestion = FlagDatabase.getRandomQuestion()
         return currentQuestion!!
     }

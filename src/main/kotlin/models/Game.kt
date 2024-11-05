@@ -11,7 +11,7 @@ abstract class Game (
     val players: MutableList<Player> = mutableListOf(),
     var currentQuestion: Question? = null
 ) {
-    abstract fun nextQuestion(roomId: String) : Question
+    abstract fun nextQuestion() : Question
     abstract fun processAnswer(answeredPlayerId: String, answer: String)
 
     abstract fun getRoundTime() : Long
