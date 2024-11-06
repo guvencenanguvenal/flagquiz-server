@@ -1,3 +1,4 @@
+import handler.MessageHandler
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -10,12 +11,11 @@ import io.ktor.websocket.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import service.ActiveRoomsResponse
-import service.GameService
+import response.ActiveRoomsResponse
+import service.RoomManagerService
+import service.SessionManagerService
 import java.time.Duration
 import java.util.*
-
-private val gameService = GameService()
 
 fun main() {
     embeddedServer(Netty, port = System.getenv("PORT")?.toInt() ?: 8080) {
@@ -45,7 +45,7 @@ fun Application.module() {
         }
 
         get("/rooms") {
-            val rooms = gameService.getActiveRooms()
+            val rooms = RoomManagerService.INSTANCE.getActiveRooms()
             call.respond(ActiveRoomsResponse(rooms))
         }
 
@@ -54,7 +54,7 @@ fun Application.module() {
             println("New WebSocket connection: $playerId")
 
             try {
-                gameService.registerPlayerSession(playerId, this)
+                SessionManagerService.INSTANCE.addPlayerToSession(playerId, this)
 
                 for (frame in incoming) {
                     when (frame) {
@@ -65,16 +65,16 @@ fun Application.module() {
                             if (jsonElement.jsonObject["type"]?.jsonPrimitive?.content == "Reconnect") {
                                 val oldPlayerId = jsonElement.jsonObject["playerId"]?.jsonPrimitive?.content
                                 if (oldPlayerId != null) {
-                                    gameService.handleReconnect(oldPlayerId, this)
+                                    RoomManagerService.INSTANCE.handleReconnect(oldPlayerId, this)
                                 }
                             } else {
-                                gameService.handleMessage(playerId, text)
+                                MessageHandler.INSTANCE.handleMessage(playerId, text)
                             }
                         }
 
                         is Frame.Close -> {
                             println("WebSocket closed for player $playerId")
-                            gameService.handleDisconnect(playerId)
+                            MessageHandler.INSTANCE.handleDisconnect(playerId)
                         }
 
                         else -> {}
@@ -85,7 +85,7 @@ fun Application.module() {
                 e.printStackTrace()
             } finally {
                 println("WebSocket connection terminated for player $playerId")
-                gameService.handleDisconnect(playerId)
+                MessageHandler.INSTANCE.handleDisconnect(playerId)
             }
         }
     }

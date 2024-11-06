@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
 
 @Serializable
-@JsonClassDiscriminator("type")  // Bunu ekledik
+@JsonClassDiscriminator("type")
 sealed class GameMessage {
     @Serializable
     @SerialName("CreateRoom")
@@ -29,7 +29,7 @@ sealed class GameMessage {
     @Serializable
     @SerialName("GameUpdate")
     data class GameUpdate(
-        val gameState: GameState,
+        val roomState: RoomState,
         val cursorPosition: Float,
         val timeRemaining: Long? = null,
         val currentQuestion: ClientQuestion? = null

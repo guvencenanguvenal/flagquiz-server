@@ -3,7 +3,7 @@ package models
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class GameState {
+enum class RoomState {
     WAITING,
     COUNTDOWN,
     PLAYING,
