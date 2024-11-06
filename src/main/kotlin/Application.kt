@@ -12,13 +12,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import response.ActiveRoomsResponse
-import service.GameService
 import service.RoomManagerService
 import service.SessionManagerService
 import java.time.Duration
 import java.util.*
-
-private val gameService = GameService()
 
 fun main() {
     embeddedServer(Netty, port = System.getenv("PORT")?.toInt() ?: 8080) {
@@ -77,7 +74,7 @@ fun Application.module() {
 
                         is Frame.Close -> {
                             println("WebSocket closed for player $playerId")
-                            RoomManagerService.INSTANCE.handleDisconnect(playerId)
+                            MessageHandler.INSTANCE.handleDisconnect(playerId)
                         }
 
                         else -> {}
@@ -88,7 +85,7 @@ fun Application.module() {
                 e.printStackTrace()
             } finally {
                 println("WebSocket connection terminated for player $playerId")
-                RoomManagerService.INSTANCE.handleDisconnect(playerId)
+                MessageHandler.INSTANCE.handleDisconnect(playerId)
             }
         }
     }

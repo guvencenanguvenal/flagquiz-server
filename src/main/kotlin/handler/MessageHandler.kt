@@ -41,7 +41,7 @@ class MessageHandler private constructor() {
 
                 is GameMessage.PlayerAnswer -> {
                     val roomId = RoomManagerService.INSTANCE.getRoomIdFromPlayerId(playerId)
-                    RoomManagerService.INSTANCE.handlePlayerAnswer(roomId, playerId, gameMessage.answer)
+                    RoomManagerService.INSTANCE.playerAnswered(roomId, playerId, gameMessage.answer)
                 }
 
                 else -> {
@@ -54,4 +54,8 @@ class MessageHandler private constructor() {
         }
     }
 
+    suspend fun handleDisconnect(playerId: String) {
+        RoomManagerService.INSTANCE.playerDisconnected(playerId)
+        SessionManagerService.INSTANCE.removePlayerSession(playerId)
+    }
 }
