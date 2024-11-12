@@ -1,4 +1,4 @@
-package models
+package model
 
 import kotlinx.coroutines.Job
 import kotlinx.serialization.Serializable

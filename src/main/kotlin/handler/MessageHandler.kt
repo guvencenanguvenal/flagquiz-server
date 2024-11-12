@@ -1,7 +1,8 @@
 package handler
 
 import kotlinx.serialization.json.Json
-import models.GameMessage
+import request.ClientSocketMessage
+import response.ServerSocketMessage
 import service.RoomManagerService
 import service.SessionManagerService
 
@@ -10,7 +11,6 @@ import service.SessionManagerService
  */
 class MessageHandler private constructor() {
     companion object {
-
         val INSTANCE: MessageHandler by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { MessageHandler() }
     }
 
@@ -18,18 +18,18 @@ class MessageHandler private constructor() {
 
     suspend fun handleMessage(playerId: String, message: String) {
         try {
-            when (val gameMessage = json.decodeFromString<GameMessage>(message)) {
-                is GameMessage.CreateRoom -> {
-                    val roomId = RoomManagerService.INSTANCE.createRoom(playerId, gameMessage.playerName)
-                    val response = GameMessage.RoomCreated(
+            when (val gameMessage = json.decodeFromString<ClientSocketMessage>(message)) {
+                is ClientSocketMessage.CreateRoom -> {
+                    val roomId = RoomManagerService.INSTANCE.createRoom(playerId)
+                    val response = ServerSocketMessage.RoomCreated(
                         roomId = roomId
                     )
                     SessionManagerService.INSTANCE.broadcastToPlayers(mutableListOf(playerId), response)
                 }
 
-                is GameMessage.JoinRoom -> {
-                    val success = RoomManagerService.INSTANCE.joinRoom(playerId, gameMessage.roomId, gameMessage.playerName)
-                    val response = GameMessage.JoinRoomResponse(
+                is ClientSocketMessage.JoinRoom -> {
+                    val success = RoomManagerService.INSTANCE.joinRoom(playerId, gameMessage.roomId)
+                    val response = ServerSocketMessage.JoinedRoom(
                         gameMessage.roomId,
                         success = success
                     )
@@ -39,7 +39,7 @@ class MessageHandler private constructor() {
                     }
                 }
 
-                is GameMessage.PlayerAnswer -> {
+                is ClientSocketMessage.PlayerAnswer -> {
                     val roomId = RoomManagerService.INSTANCE.getRoomIdFromPlayerId(playerId)
                     RoomManagerService.INSTANCE.playerAnswered(roomId, playerId, gameMessage.answer)
                 }

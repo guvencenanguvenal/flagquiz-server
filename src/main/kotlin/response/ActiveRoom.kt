@@ -1,7 +1,7 @@
 package response
 
 import kotlinx.serialization.Serializable
-import models.RoomState
+import model.RoomState
 
 @Serializable
 data class ActiveRoom(
