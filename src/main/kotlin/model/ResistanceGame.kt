@@ -1,4 +1,4 @@
-package models
+package model
 
 import data.FlagDatabase
 
@@ -11,10 +11,6 @@ class ResistanceGame(
     currentQuestion: Question? = null,
     var cursorPosition: Float = 0.5f
 ) : Game(id, players, currentQuestion) {
-
-    companion object {
-        fun a() : Int = 1
-    }
 
     private val ROUND_TIME_SECONDS = 10L
 

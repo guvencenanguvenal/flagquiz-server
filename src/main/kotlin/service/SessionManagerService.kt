@@ -1,9 +1,9 @@
 package service
 
 import io.ktor.websocket.*
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import models.GameMessage
+import response.ServerSocketMessage
+import java.util.*
 
 /**
  * @author guvencenanguvenal
@@ -14,7 +14,7 @@ class SessionManagerService private constructor() {
         val INSTANCE: SessionManagerService by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { SessionManagerService() }
     }
 
-    private val playerSessions = mutableMapOf<String, DefaultWebSocketSession>()
+    private val playerSessions = Collections.synchronizedMap(mutableMapOf<String, DefaultWebSocketSession>())
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -30,12 +30,12 @@ class SessionManagerService private constructor() {
         playerSessions.remove(playerId)
     }
 
-    suspend fun broadcastToPlayers(playerIds: MutableList<String>, message: GameMessage) {
+    suspend fun broadcastToPlayers(playerIds: MutableList<String>, message: ServerSocketMessage) {
         playerIds.forEach { playerId ->
             val session = playerSessions[playerId]
             if (session != null) {
                 try {
-                    session.send(Frame.Text(json.encodeToString(GameMessage.serializer(), message)))
+                    session.send(Frame.Text(json.encodeToString(ServerSocketMessage.serializer(), message)))
                     println("Message sent to player $playerId")
                 } catch (e: Exception) {
                     println("Error sending message to player $playerId: ${e.message}")

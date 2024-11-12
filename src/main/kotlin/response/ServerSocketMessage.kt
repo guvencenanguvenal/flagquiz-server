@@ -1,95 +1,92 @@
-package models
+package response
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
+import model.ClientQuestion
+import model.Player
+import model.RoomState
 
+/**
+ * @author guvencenanguvenal
+ */
 @Serializable
 @JsonClassDiscriminator("type")
-sealed class GameMessage {
-    @Serializable
-    @SerialName("CreateRoom")
-    data class CreateRoom(
-        val playerName: String
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("JoinRoom")
-    data class JoinRoom(
-        val roomId: String,
-        val playerName: String
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("PlayerAnswer")
-    data class PlayerAnswer(
-        val answer: String
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("GameUpdate")
-    data class GameUpdate(
-        val roomState: RoomState,
-        val cursorPosition: Float,
-        val timeRemaining: Long? = null,
-        val currentQuestion: ClientQuestion? = null
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("TimeUpdate")
-    data class TimeUpdate(
-        val timeRemaining: Long
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("TimeUp")
-    data class TimeUp(
-        val correctAnswer: String
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("GameOver")
-    data class GameOver(
-        val winner: String
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("AnswerResult")
-    data class AnswerResult(
-        val playerName: String,
-        val answer: String,
-        val correct: Boolean
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("PlayerDisconnected")
-    data class PlayerDisconnected(
-        val playerName: String
-    ) : GameMessage()
-
-    @Serializable
-    @SerialName("PlayerReconnected")
-    data class PlayerReconnected(
-        val playerName: String
-    ) : GameMessage()
+sealed class ServerSocketMessage() {
 
     @Serializable
     @SerialName("RoomCreated")
     data class RoomCreated(
         val roomId: String
-    ) : GameMessage()
+    ) : ServerSocketMessage()
 
     @Serializable
-    @SerialName("JoinRoomResponse")
-    data class JoinRoomResponse(
+    @SerialName("RoomUpdate")
+    data class RoomUpdate(
+        val players: List<Player>,
+        val state: RoomState,
+        val cursorPosition: Float,
+        val timeRemaining: Long? = null,
+        val currentQuestion: ClientQuestion? = null
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("TimeUpdate")
+    data class TimeUpdate(
+        val remaining: Long
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("TimeUp")
+    data class TimeUp(
+        val correctAnswer: String
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("GameOver")
+    data class GameOver(
+        val winnerPlayerId: String
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("AnswerResult")
+    data class AnswerResult(
+        val playerId: String,
+        val answer: String,
+        val correct: Boolean
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("PlayerDisconnected")
+    data class PlayerDisconnected(
+        val playerId: String,
+        val playerName: String
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("PlayerReconnected")
+    data class PlayerReconnected(
+        val playerName: String
+    ) : ServerSocketMessage()
+
+    @Serializable
+    @SerialName("JoinedRoom")
+    data class JoinedRoom(
         val roomId: String,
         val success: Boolean
-    ) : GameMessage()
+    ) : ServerSocketMessage()
 
     @Serializable
     @SerialName("RoomClosed")
     data class RoomClosed(
         val reason: String
-    ) : GameMessage()
-}
+    ) : ServerSocketMessage()
 
+    @Serializable
+    @SerialName("RoundResult")
+    data class RoundResult(
+        val correctAnswer: String,
+        val winnerPlayerId: String?,
+        val winnerPlayerName: String?
+    ) : ServerSocketMessage()
+}

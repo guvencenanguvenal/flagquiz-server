@@ -20,12 +20,11 @@ dependencies {
     implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation("io.ktor:ktor-server-websockets:$ktor_version")
     implementation("io.ktor:ktor-server-content-negotiation:$ktor_version")
-
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.21")
 
     // Serialization
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktor_version")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-
 
     // Logging
     implementation("ch.qos.logback:logback-classic:$logback_version")

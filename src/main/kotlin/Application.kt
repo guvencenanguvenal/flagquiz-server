@@ -1,17 +1,25 @@
 import handler.MessageHandler
+import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import response.ActiveRoomsResponse
+import request.CreatePlayerRequest
+import request.LoginPlayerRequest
+import response.PlayerResponse
+import router.playerRoutes
+import router.roomRoutes
+import service.PlayerManagerService
 import service.RoomManagerService
 import service.SessionManagerService
 import java.time.Duration
@@ -29,6 +37,7 @@ fun Application.module() {
         json(Json {
             prettyPrint = true
             isLenient = true
+            ignoreUnknownKeys = true
         })
     }
 
@@ -44,14 +53,19 @@ fun Application.module() {
             call.respondText("models.Flag Quiz Game Server Running!")
         }
 
-        get("/rooms") {
-            val rooms = RoomManagerService.INSTANCE.getActiveRooms()
-            call.respond(ActiveRoomsResponse(rooms))
-        }
+        roomRoutes()
+        playerRoutes()
 
         webSocket("/game") {
-            val playerId = UUID.randomUUID().toString()
+            val playerId = call.parameters["userId"]//call.request.headers["playerId"]
+
+            if (playerId == null) {
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing playerId"))
+                return@webSocket
+            }
             println("New WebSocket connection: $playerId")
+
+            PlayerManagerService.INSTANCE.getPlayer(playerId) ?: close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing playerId"))
 
             try {
                 SessionManagerService.INSTANCE.addPlayerToSession(playerId, this)
